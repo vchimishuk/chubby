@@ -278,7 +278,7 @@ func parseRespStatus(line string) error {
 }
 
 func parseEntry(s string) (Entry, error) {
-	m, err := parser.New(s).Parse()
+	m, err := parser.Parse(s)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +299,7 @@ func parseEntry(s string) (Entry, error) {
 }
 
 func parsePlaylist(s string) (*Playlist, error) {
-	m, err := parser.New(s).Parse()
+	m, err := parser.Parse(s)
 	if err != nil {
 		return nil, err
 	}

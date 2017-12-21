@@ -25,16 +25,13 @@ import (
 	"unicode/utf8"
 )
 
-type Parser struct {
-	input string
-	pos   int
+type impl struct {
+	s   string
+	pos int
 }
 
-func New(input string) *Parser {
-	return &Parser{input: input}
-}
-
-func (p *Parser) Parse() (map[string]interface{}, error) {
+func Parse(s string) (map[string]interface{}, error) {
+	p := &impl{s: s, pos: 0}
 	m := make(map[string]interface{})
 
 	for !p.eol() {
@@ -67,12 +64,12 @@ func (p *Parser) Parse() (map[string]interface{}, error) {
 	return m, nil
 }
 
-func (p *Parser) key() (string, error) {
+func (p *impl) key() (string, error) {
 	first := true
 	k := 0
 
 	for {
-		r, n := utf8.DecodeRuneInString(p.input[p.pos+k:])
+		r, n := utf8.DecodeRuneInString(p.s[p.pos+k:])
 		if (first && unicode.IsLetter(r)) || (unicode.IsLetter(r) ||
 			unicode.IsNumber(r) || r == '_') {
 			k += n
@@ -86,17 +83,17 @@ func (p *Parser) key() (string, error) {
 		return "", newError(p.pos, "identifier expected")
 	}
 
-	tok := p.input[p.pos : p.pos+k]
+	tok := p.s[p.pos : p.pos+k]
 	p.pos += k
 
 	return tok, nil
 }
 
-func (p *Parser) val() (interface{}, error) {
+func (p *impl) val() (interface{}, error) {
 	var val interface{}
 	var err error
 
-	r, _ := utf8.DecodeRuneInString(p.input[p.pos:])
+	r, _ := utf8.DecodeRuneInString(p.s[p.pos:])
 	if r == '"' {
 		val, err = p.string()
 	} else if unicode.IsNumber(r) {
@@ -110,7 +107,7 @@ func (p *Parser) val() (interface{}, error) {
 	return val, err
 }
 
-func (p *Parser) string() (string, error) {
+func (p *impl) string() (string, error) {
 	var buf []rune
 	k := 0
 
@@ -119,7 +116,7 @@ func (p *Parser) string() (string, error) {
 	}
 
 	for !p.eol() {
-		r, n := utf8.DecodeRuneInString(p.input[p.pos+k:])
+		r, n := utf8.DecodeRuneInString(p.s[p.pos+k:])
 		if r == '"' {
 			break
 		}
@@ -127,7 +124,7 @@ func (p *Parser) string() (string, error) {
 			if p.eol() {
 				return "", newError(p.pos+k, "end of string expected")
 			}
-			rr, nn := utf8.DecodeRuneInString(p.input[p.pos+k+n:])
+			rr, nn := utf8.DecodeRuneInString(p.s[p.pos+k+n:])
 			r = rr
 			n += nn
 		}
@@ -144,11 +141,11 @@ func (p *Parser) string() (string, error) {
 	return string(buf), nil
 }
 
-func (p *Parser) number() (int, error) {
+func (p *impl) number() (int, error) {
 	k := 0
 
 	for !p.eol() {
-		r, n := utf8.DecodeRuneInString(p.input[p.pos+k:])
+		r, n := utf8.DecodeRuneInString(p.s[p.pos+k:])
 		if unicode.IsNumber(r) {
 			k += n
 		} else {
@@ -158,7 +155,7 @@ func (p *Parser) number() (int, error) {
 	if k == 0 {
 		return 0, newError(p.pos, "number expected")
 	}
-	s := p.input[p.pos : p.pos+k]
+	s := p.s[p.pos : p.pos+k]
 	n, err := strconv.Atoi(s)
 	if err != nil {
 		return 0, newError(p.pos, "invalid number")
@@ -168,8 +165,8 @@ func (p *Parser) number() (int, error) {
 	return n, nil
 }
 
-func (p *Parser) boolean() (bool, error) {
-	s := p.input[p.pos:]
+func (p *impl) boolean() (bool, error) {
+	s := p.s[p.pos:]
 	b := false
 	n := 0
 
@@ -186,12 +183,12 @@ func (p *Parser) boolean() (bool, error) {
 	return b, nil
 }
 
-func (p *Parser) consume(s string) error {
+func (p *impl) consume(s string) error {
 	var err error
 
 	if p.eol() {
 		err = newError(p.pos, "EOL")
-	} else if strings.HasPrefix(p.input[p.pos:], s) {
+	} else if strings.HasPrefix(p.s[p.pos:], s) {
 		p.pos += len([]byte(s))
 	} else {
 		err = newError(p.pos, fmt.Sprintf("'%s' expected", s))
@@ -200,12 +197,12 @@ func (p *Parser) consume(s string) error {
 	return err
 }
 
-func (p *Parser) skipSpaces() {
+func (p *impl) skipSpaces() {
 	for p.consume(" ") == nil {
 
 	}
 }
 
-func (p *Parser) eol() bool {
-	return p.pos >= len(p.input)
+func (p *impl) eol() bool {
+	return p.pos >= len(p.s)
 }

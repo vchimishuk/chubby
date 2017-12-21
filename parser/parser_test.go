@@ -60,7 +60,7 @@ func TestBool(t *testing.T) {
 }
 
 func testMap(s string, expected map[string]interface{}) error {
-	m, err := New(s).Parse()
+	m, err := Parse(s)
 	if err != nil {
 		return err
 	}
