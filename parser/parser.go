@@ -71,7 +71,7 @@ func (p *impl) key() (string, error) {
 	for {
 		r, n := utf8.DecodeRuneInString(p.s[p.pos+k:])
 		if (first && unicode.IsLetter(r)) || (unicode.IsLetter(r) ||
-			unicode.IsNumber(r) || r == '_') {
+			unicode.IsNumber(r) || r == '_' || r == '-') {
 			k += n
 		} else {
 			break

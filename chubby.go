@@ -39,13 +39,32 @@ const (
 	CmdPlaylists      = "playlists"
 	CmdPrev           = "prev"
 	CmdRenamePlaylist = "rename-playlist"
+	CmdStatus         = "status"
 	CmdStop           = "stop"
 )
 
 type Playlist struct {
 	Name     string
-	Duration int
+	Duration Time
 	Length   int
+}
+
+type State int
+
+const (
+	StatePlaying State = iota
+	StatePaused
+	StateStopped
+)
+
+type Status struct {
+	State       State
+	Playlist    string
+	PlaylistLen int
+	PlaylistPos int
+	Track       string
+	TrackLen    Time
+	TrackPos    Time
 }
 
 type Entry interface {
@@ -77,7 +96,7 @@ type Track struct {
 	Album  string
 	Title  string
 	Number int
-	Length int
+	Length Time
 }
 
 func (t *Track) IsDir() bool {
@@ -222,6 +241,45 @@ func (c *Chubby) RenamePlaylist(from, to string) error {
 	return err
 }
 
+func (c *Chubby) Status() (*Status, error) {
+	lines, err := c.cmd(CmdStatus)
+
+	if len(lines) != 1 {
+		return nil, errors.New("invalid server response")
+	}
+
+	m, err := parser.Parse(lines[0])
+	if err != nil {
+		return nil, err
+	}
+
+	var st State
+
+	if m["state"].(string) == "playing" {
+		st = StatePlaying
+	} else if m["state"].(string) == "paused" {
+		st = StatePaused
+	} else if m["state"].(string) == "stopped" {
+		st = StateStopped
+	} else {
+		return nil, fmt.Errorf("invalid status: %s", m["state"].(string))
+	}
+
+	s := &Status{}
+	s.State = st
+
+	if st != StateStopped {
+		s.Playlist = m["playlist-name"].(string)
+		s.PlaylistLen = m["playlist-length"].(int)
+		s.PlaylistPos = m["playlist-position"].(int)
+		s.Track = m["track-path"].(string)
+		s.TrackLen = Time(m["track-length"].(int))
+		s.TrackPos = Time(m["track-position"].(int))
+	}
+
+	return s, nil
+}
+
 func (c *Chubby) Stop() error {
 	_, err := c.cmd(CmdStop)
 
@@ -293,7 +351,7 @@ func parseEntry(s string) (Entry, error) {
 				Album:  m["album"].(string),
 				Title:  m["title"].(string),
 				Number: m["number"].(int),
-				Length: m["length"].(int)},
+				Length: Time(m["length"].(int))},
 			nil
 	}
 }
@@ -306,7 +364,7 @@ func parsePlaylist(s string) (*Playlist, error) {
 
 	return &Playlist{
 		Name:     m["name"].(string),
-		Duration: m["duration"].(int),
+		Duration: Time(m["duration"].(int)),
 		Length:   m["length"].(int),
 	}, nil
 }
