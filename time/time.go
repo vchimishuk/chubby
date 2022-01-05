@@ -15,11 +15,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Chub. If not, see <http://www.gnu.org/licenses/>.
 
-package chubby
+package time
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 )
 
 type Time int
@@ -53,4 +55,69 @@ func (t Time) String() string {
 	r += fmt.Sprintf("%02d", s)
 
 	return r
+}
+
+func Parse(s string) (Time, error) {
+	pts := reverse(strings.Split(s, ":"))
+	i, err := parseSecMin(pts[0])
+	if err != nil {
+		return 0, fmt.Errorf("seconds: %w", err)
+	}
+	t := i
+
+	if len(pts) > 1 {
+		i, err := parseSecMin(pts[1])
+		if err != nil {
+			return 0, fmt.Errorf("minutes: %w", err)
+		}
+		t += i * 60
+	}
+	if len(pts) > 2 {
+		i, err := parseSecMin(pts[2])
+		if err != nil {
+			return 0, fmt.Errorf("hours: %w", err)
+		}
+		t += i * 60 * 60
+	}
+	if len(pts) > 3 {
+		return 0, errors.New("bad format")
+	}
+
+	return Time(t), nil
+}
+
+func parseSecMin(s string) (int, error) {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	if i < 0 {
+		return 0, errors.New("out of range")
+	}
+	if i > 59 {
+		return 0, errors.New("out of range")
+	}
+
+	return i, nil
+}
+
+func parseHour(s string) (int, error) {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	if i < 0 {
+		return 0, errors.New("out of range")
+	}
+
+	return i, nil
+}
+
+func reverse(s []string) []string {
+	var ss []string
+	for i := len(s) - 1; i >= 0; i-- {
+		ss = append(ss, s[i])
+	}
+
+	return ss
 }

@@ -24,12 +24,13 @@ import (
 
 	"github.com/vchimishuk/chubby/parser"
 	"github.com/vchimishuk/chubby/textconn"
+	"github.com/vchimishuk/chubby/time"
 )
 
 type StatusEvent struct {
 	State       State
 	PlaylistPos int
-	TrackPos    Time
+	TrackPos    time.Time
 	Playlist    *Playlist
 	Track       *Track
 }
@@ -132,11 +133,11 @@ func status(lines []mapLine) (interface{}, error) {
 			case "playlist-position":
 				e.PlaylistPos = v.(int)
 			case "track-position":
-				e.TrackPos = Time(v.(int))
+				e.TrackPos = time.Time(v.(int))
 			case "playlist-name":
 				e.Playlist.Name = v.(string)
 			case "playlist-duration":
-				e.Playlist.Duration = Time(v.(int))
+				e.Playlist.Duration = time.Time(v.(int))
 			case "playlist-length":
 				e.Playlist.Length = v.(int)
 			case "track-path":
@@ -150,7 +151,7 @@ func status(lines []mapLine) (interface{}, error) {
 			case "track-number":
 				e.Track.Number = v.(int)
 			case "track-length":
-				e.Track.Length = Time(v.(int))
+				e.Track.Length = time.Time(v.(int))
 			}
 		}
 	}

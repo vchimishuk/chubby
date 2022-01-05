@@ -25,6 +25,7 @@ import (
 
 	"github.com/vchimishuk/chubby/parser"
 	"github.com/vchimishuk/chubby/textconn"
+	"github.com/vchimishuk/chubby/time"
 )
 
 const (
@@ -46,15 +47,15 @@ const (
 
 type Playlist struct {
 	Name     string
-	Duration Time
+	Duration time.Time
 	Length   int
 }
 
 type Status struct {
 	State       State
 	PlaylistPos int
-	TrackLen    Time
-	TrackPos    Time
+	TrackLen    time.Time
+	TrackPos    time.Time
 	Playlist    *Playlist
 	Track       *Track
 }
@@ -88,7 +89,7 @@ type Track struct {
 	Album  string
 	Title  string
 	Number int
-	Length Time
+	Length time.Time
 }
 
 func (t *Track) IsDir() bool {
@@ -233,7 +234,7 @@ func (c *CmdClient) RenamePlaylist(from, to string) error {
 	return err
 }
 
-func (c *CmdClient) Seek(time Time, rel bool) error {
+func (c *CmdClient) Seek(time time.Time, rel bool) error {
 	_, err := c.cmd(CmdSeek, time.String(), rel)
 
 	return err
@@ -260,17 +261,17 @@ func (c *CmdClient) Status() (*Status, error) {
 
 	if st != StateStopped {
 		s.PlaylistPos = m["playlist-position"].(int)
-		s.TrackLen = Time(m["track-length"].(int))
-		s.TrackPos = Time(m["track-position"].(int))
+		s.TrackLen = time.Time(m["track-length"].(int))
+		s.TrackPos = time.Time(m["track-position"].(int))
 		s.Playlist.Name = m["playlist-name"].(string)
-		s.Playlist.Duration = Time(m["playlist-duration"].(int))
+		s.Playlist.Duration = time.Time(m["playlist-duration"].(int))
 		s.Playlist.Length = m["playlist-length"].(int)
 		s.Track.Path = m["track-path"].(string)
 		s.Track.Artist = m["track-artist"].(string)
 		s.Track.Album = m["track-album"].(string)
 		s.Track.Title = m["track-title"].(string)
 		s.Track.Number = m["track-number"].(int)
-		s.Track.Length = Time(m["track-length"].(int))
+		s.Track.Length = time.Time(m["track-length"].(int))
 	}
 
 	return s, nil
@@ -347,7 +348,7 @@ func parseEntry(s string) (Entry, error) {
 				Album:  m["album"].(string),
 				Title:  m["title"].(string),
 				Number: m["number"].(int),
-				Length: Time(m["length"].(int))},
+				Length: time.Time(m["length"].(int))},
 			nil
 	}
 }
@@ -360,7 +361,7 @@ func parsePlaylist(s string) (*Playlist, error) {
 
 	return &Playlist{
 		Name:     m["name"].(string),
-		Duration: Time(m["duration"].(int)),
+		Duration: time.Time(m["duration"].(int)),
 		Length:   m["length"].(int),
 	}, nil
 }
