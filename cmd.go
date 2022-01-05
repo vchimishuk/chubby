@@ -49,22 +49,13 @@ type Playlist struct {
 	Length   int
 }
 
-type State int
-
-const (
-	StatePlaying State = iota
-	StatePaused
-	StateStopped
-)
-
 type Status struct {
 	State       State
-	Playlist    string
-	PlaylistLen int
 	PlaylistPos int
-	Track       string
 	TrackLen    Time
 	TrackPos    Time
+	Playlist    *Playlist
+	Track       *Track
 }
 
 type Entry interface {
@@ -111,11 +102,11 @@ func (t *Track) Track() *Track {
 	return t
 }
 
-type Chubby struct {
+type CmdClient struct {
 	conn *textconn.TextConn
 }
 
-func (c *Chubby) Connect(host string, port int) error {
+func (c *CmdClient) Connect(host string, port int) error {
 	if c.conn != nil {
 		return errors.New("already connected")
 	}
@@ -143,7 +134,7 @@ func (c *Chubby) Connect(host string, port int) error {
 	return nil
 }
 
-func (c *Chubby) Close() error {
+func (c *CmdClient) Close() error {
 	if c.conn == nil {
 		return errors.New("not connected")
 	}
@@ -153,25 +144,25 @@ func (c *Chubby) Close() error {
 	return err
 }
 
-func (c *Chubby) CreatePlaylist(name string) error {
+func (c *CmdClient) CreatePlaylist(name string) error {
 	_, err := c.cmd(CmdCreatePlaylist, name)
 
 	return err
 }
 
-func (c *Chubby) DeletePlaylist(name string) error {
+func (c *CmdClient) DeletePlaylist(name string) error {
 	_, err := c.cmd(CmdDeletePlaylist, name)
 
 	return err
 }
 
-func (c *Chubby) Kill() error {
+func (c *CmdClient) Kill() error {
 	_, err := c.cmd(CmdKill)
 
 	return err
 }
 
-func (c *Chubby) List(path string) ([]Entry, error) {
+func (c *CmdClient) List(path string) ([]Entry, error) {
 	lines, err := c.cmd(CmdList, path)
 	if err != nil {
 		return nil, err
@@ -188,31 +179,31 @@ func (c *Chubby) List(path string) ([]Entry, error) {
 	return entries, nil
 }
 
-func (c *Chubby) Next() error {
+func (c *CmdClient) Next() error {
 	_, err := c.cmd(CmdNext)
 
 	return err
 }
 
-func (c *Chubby) Pause() error {
+func (c *CmdClient) Pause() error {
 	_, err := c.cmd(CmdPause)
 
 	return err
 }
 
-func (c *Chubby) Ping() error {
+func (c *CmdClient) Ping() error {
 	_, err := c.cmd(CmdPing)
 
 	return err
 }
 
-func (c *Chubby) Play(pth string) error {
+func (c *CmdClient) Play(pth string) error {
 	_, err := c.cmd(CmdPlay, pth)
 
 	return err
 }
 
-func (c *Chubby) Playlists() ([]*Playlist, error) {
+func (c *CmdClient) Playlists() ([]*Playlist, error) {
 	lines, err := c.cmd(CmdPlaylists)
 	if err != nil {
 		return nil, err
@@ -229,23 +220,23 @@ func (c *Chubby) Playlists() ([]*Playlist, error) {
 	return pls, nil
 }
 
-func (c *Chubby) Prev() error {
+func (c *CmdClient) Prev() error {
 	_, err := c.cmd(CmdPrev)
 
 	return err
 }
 
-func (c *Chubby) RenamePlaylist(from, to string) error {
+func (c *CmdClient) RenamePlaylist(from, to string) error {
 	_, err := c.cmd(CmdRenamePlaylist, from, to)
 
 	return err
 }
 
-func (c *Chubby) Status() (*Status, error) {
+func (c *CmdClient) Status() (*Status, error) {
 	lines, err := c.cmd(CmdStatus)
 
 	if len(lines) != 1 {
-		return nil, errors.New("invalid server response")
+		return nil, err
 	}
 
 	m, err := parser.Parse(lines[0])
@@ -253,40 +244,38 @@ func (c *Chubby) Status() (*Status, error) {
 		return nil, err
 	}
 
-	var st State
-
-	if m["state"].(string) == "playing" {
-		st = StatePlaying
-	} else if m["state"].(string) == "paused" {
-		st = StatePaused
-	} else if m["state"].(string) == "stopped" {
-		st = StateStopped
-	} else {
-		return nil, fmt.Errorf("invalid status: %s", m["state"].(string))
+	st, err := parseState(m["state"].(string))
+	if err != nil {
+		return nil, err
 	}
 
-	s := &Status{}
-	s.State = st
+	s := &Status{State: st, Playlist: &Playlist{}, Track: &Track{}}
 
 	if st != StateStopped {
-		s.Playlist = m["playlist-name"].(string)
-		s.PlaylistLen = m["playlist-length"].(int)
 		s.PlaylistPos = m["playlist-position"].(int)
-		s.Track = m["track-path"].(string)
 		s.TrackLen = Time(m["track-length"].(int))
 		s.TrackPos = Time(m["track-position"].(int))
+		s.Playlist.Name = m["playlist-name"].(string)
+		s.Playlist.Duration = Time(m["playlist-duration"].(int))
+		s.Playlist.Length = m["playlist-length"].(int)
+		s.Track.Path = m["track-path"].(string)
+		s.Track.Artist = m["track-artist"].(string)
+		s.Track.Album = m["track-album"].(string)
+		s.Track.Title = m["track-title"].(string)
+		s.Track.Number = m["track-number"].(int)
+		s.Track.Length = Time(m["track-length"].(int))
 	}
 
 	return s, nil
 }
 
-func (c *Chubby) Stop() error {
+func (c *CmdClient) Stop() error {
 	_, err := c.cmd(CmdStop)
 
 	return err
 }
 
-func (c *Chubby) cmd(name string, args ...interface{}) ([]string, error) {
+func (c *CmdClient) cmd(name string, args ...interface{}) ([]string, error) {
 	buf := name
 	for _, arg := range args {
 		buf += fmt.Sprintf(" %#v", arg)
