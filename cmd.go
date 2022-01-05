@@ -39,6 +39,7 @@ const (
 	CmdPlaylists      = "playlists"
 	CmdPrev           = "prev"
 	CmdRenamePlaylist = "rename-playlist"
+	CmdSeek           = "seek"
 	CmdStatus         = "status"
 	CmdStop           = "stop"
 )
@@ -228,6 +229,12 @@ func (c *CmdClient) Prev() error {
 
 func (c *CmdClient) RenamePlaylist(from, to string) error {
 	_, err := c.cmd(CmdRenamePlaylist, from, to)
+
+	return err
+}
+
+func (c *CmdClient) Seek(time Time, rel bool) error {
+	_, err := c.cmd(CmdSeek, time.String(), rel)
 
 	return err
 }
