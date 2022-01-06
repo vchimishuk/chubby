@@ -45,6 +45,14 @@ const (
 	CmdStop           = "stop"
 )
 
+type SeekMode int
+
+const (
+	SeekModeAbs     SeekMode = 0
+	SeekModeForward SeekMode = 1
+	SeekModeRewind  SeekMode = -1
+)
+
 type Playlist struct {
 	Name     string
 	Duration time.Time
@@ -234,8 +242,25 @@ func (c *CmdClient) RenamePlaylist(from, to string) error {
 	return err
 }
 
-func (c *CmdClient) Seek(time time.Time, rel bool) error {
-	_, err := c.cmd(CmdSeek, int(time), rel)
+func (c *CmdClient) Seek(time time.Time, mode SeekMode) error {
+	var t int
+	var rel bool
+
+	switch mode {
+	case SeekModeAbs:
+		t = int(time)
+		rel = false
+	case SeekModeForward:
+		t = int(time)
+		rel = true
+	case SeekModeRewind:
+		t = -int(time)
+		rel = true
+	default:
+		panic("unsupported SeekMode")
+	}
+
+	_, err := c.cmd(CmdSeek, t, rel)
 
 	return err
 }
