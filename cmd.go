@@ -235,7 +235,7 @@ func (c *CmdClient) RenamePlaylist(from, to string) error {
 }
 
 func (c *CmdClient) Seek(time time.Time, rel bool) error {
-	_, err := c.cmd(CmdSeek, time.String(), rel)
+	_, err := c.cmd(CmdSeek, int(time), rel)
 
 	return err
 }
