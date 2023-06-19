@@ -1,4 +1,4 @@
-// Copyright 2018 Viacheslav Chimishuk <vchimishuk@yandex.ru>
+// Copyright 2018-2023 Viacheslav Chimishuk <vchimishuk@yandex.ru>
 //
 // This file is part of chubby.
 //
@@ -18,12 +18,9 @@
 package chubby
 
 import (
-	"errors"
 	"fmt"
-	"net"
 
 	"github.com/vchimishuk/chubby/parser"
-	"github.com/vchimishuk/chubby/textconn"
 	"github.com/vchimishuk/chubby/time"
 )
 
@@ -35,90 +32,27 @@ type StatusEvent struct {
 	Track       *Track
 }
 
-type mapLine map[string]interface{}
+type kv map[string]any
 
-type protocolError string
-
-func (err protocolError) Error() string {
-	return "invalid server response: " + string(err)
-}
-
-type NotifClient struct {
-	conn *textconn.TextConn
-}
-
-func (c *NotifClient) Connect(host string, port int) error {
-	if c.conn != nil {
-		return errors.New("already connected")
-	}
-
-	addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%d", host, port))
-	if err != nil {
-		return err
-	}
-	conn, err := net.DialTCP("tcp", nil, addr)
-	if err != nil {
-		return err
-	}
-	c.conn = textconn.New(conn)
-
-	// TODO: Read server's greetings.
-	// if _, err := c.conn.ReadLine(); err != nil {
-	// 	c.conn.Close()
-	// 	return err
-	// }
-	// if _, err := c.conn.ReadLine(); err != nil {
-	// 	c.conn.Close()
-	// 	return err
-	// }
-
-	return nil
-}
-
-func (c *NotifClient) Accept() (interface{}, error) {
-	name, err := c.conn.ReadLine()
-	if err != nil {
-		return nil, err
-	}
-
-	var lines []mapLine
-	for {
-		l, err := c.conn.ReadLine()
+func parseEvent(name string, lines []string) (any, error) {
+	m := make([]kv, 0, len(lines))
+	for _, l := range lines {
+		p, err := parser.Parse(l)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("protocol: %w", err.Error())
 		}
-		if l == "" {
-			break
-		}
-		m, err := parser.Parse(l)
-		if err != nil {
-			return nil, protocolError(err.Error())
-		}
-		lines = append(lines, m)
+		m = append(m, p)
 	}
 
-	var e interface{}
 	switch name {
 	case "status":
-		e, err = status(lines)
+		return parseStatus(m)
 	default:
-		return nil, protocolError(fmt.Sprintf("invlid event %s", name))
+		return nil, fmt.Errorf("protocol: invalid event: %s", name)
 	}
-
-	return e, err
 }
 
-func (c *NotifClient) Close() error {
-	if c.conn == nil {
-		return errors.New("not connected")
-	}
-	err := c.conn.Close()
-	c.conn = nil
-
-	return err
-}
-
-func status(lines []mapLine) (interface{}, error) {
+func parseStatus(lines []kv) (interface{}, error) {
 	e := &StatusEvent{Playlist: &Playlist{}, Track: &Track{}}
 
 	for _, l := range lines {

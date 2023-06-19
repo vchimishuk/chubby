@@ -1,4 +1,4 @@
-// Copyright 2017 Viacheslav Chimishuk <vchimishuk@yandex.ru>
+// Copyright 2017-2023 Viacheslav Chimishuk <vchimishuk@yandex.ru>
 //
 // This file is part of chubby.
 //
@@ -29,20 +29,21 @@ import (
 )
 
 const (
-	CmdCreatePlaylist = "create-playlist"
-	CmdDeletePlaylist = "delete-playlist"
-	CmdKill           = "kill"
-	CmdList           = "list"
-	CmdNext           = "next"
-	CmdPause          = "pause"
-	CmdPing           = "ping"
-	CmdPlay           = "play"
-	CmdPlaylists      = "playlists"
-	CmdPrev           = "prev"
-	CmdRenamePlaylist = "rename-playlist"
-	CmdSeek           = "seek"
-	CmdStatus         = "status"
-	CmdStop           = "stop"
+	cmdCreatePlaylist = "create-playlist"
+	cmdDeletePlaylist = "delete-playlist"
+	cmdEvents         = "events"
+	cmdKill           = "kill"
+	cmdList           = "list"
+	cmdNext           = "next"
+	cmdPause          = "pause"
+	cmdPing           = "ping"
+	cmdPlay           = "play"
+	cmdPlaylists      = "playlists"
+	cmdPrev           = "prev"
+	cmdRenamePlaylist = "rename-playlist"
+	cmdSeek           = "seek"
+	cmdStatus         = "status"
+	cmdStop           = "stop"
 )
 
 type SeekMode int
@@ -51,6 +52,10 @@ const (
 	SeekModeAbs     SeekMode = 0
 	SeekModeForward SeekMode = 1
 	SeekModeRewind  SeekMode = -1
+)
+
+const (
+	eventsChSize = 10
 )
 
 type Playlist struct {
@@ -112,11 +117,14 @@ func (t *Track) Track() *Track {
 	return t
 }
 
-type CmdClient struct {
-	conn *textconn.TextConn
+type Chubby struct {
+	conn   *textconn.TextConn
+	resps  chan []string
+	events chan any
+	err    chan error
 }
 
-func (c *CmdClient) Connect(host string, port int) error {
+func (c *Chubby) Connect(host string, port int) error {
 	if c.conn != nil {
 		return errors.New("already connected")
 	}
@@ -131,49 +139,48 @@ func (c *CmdClient) Connect(host string, port int) error {
 	}
 	c.conn = textconn.New(conn)
 
-	// Read server's greetings.
-	if _, err := c.conn.ReadLine(); err != nil {
-		c.conn.Close()
-		return err
-	}
-	if _, err := c.conn.ReadLine(); err != nil {
-		c.conn.Close()
-		return err
-	}
+	c.resps = make(chan []string)
+	c.events = make(chan any, eventsChSize)
+	c.err = make(chan error, 1)
+
+	go c.read()
 
 	return nil
 }
 
-func (c *CmdClient) Close() error {
+func (c *Chubby) Close() error {
 	if c.conn == nil {
 		return errors.New("not connected")
 	}
 	err := c.conn.Close()
 	c.conn = nil
 
-	return err
-}
-
-func (c *CmdClient) CreatePlaylist(name string) error {
-	_, err := c.cmd(CmdCreatePlaylist, name)
+	// Wait for read() goroutine to exit.
+	<-c.err
 
 	return err
 }
 
-func (c *CmdClient) DeletePlaylist(name string) error {
-	_, err := c.cmd(CmdDeletePlaylist, name)
+func (c *Chubby) CreatePlaylist(name string) error {
+	_, err := c.cmd(cmdCreatePlaylist, name)
 
 	return err
 }
 
-func (c *CmdClient) Kill() error {
-	_, err := c.cmd(CmdKill)
+func (c *Chubby) DeletePlaylist(name string) error {
+	_, err := c.cmd(cmdDeletePlaylist, name)
 
 	return err
 }
 
-func (c *CmdClient) List(path string) ([]Entry, error) {
-	lines, err := c.cmd(CmdList, path)
+func (c *Chubby) Kill() error {
+	_, err := c.cmd(cmdKill)
+
+	return err
+}
+
+func (c *Chubby) List(path string) ([]Entry, error) {
+	lines, err := c.cmd(cmdList, path)
 	if err != nil {
 		return nil, err
 	}
@@ -189,32 +196,38 @@ func (c *CmdClient) List(path string) ([]Entry, error) {
 	return entries, nil
 }
 
-func (c *CmdClient) Next() error {
-	_, err := c.cmd(CmdNext)
+func (c *Chubby) Next() error {
+	_, err := c.cmd(cmdNext)
 
 	return err
 }
 
-func (c *CmdClient) Pause() error {
-	_, err := c.cmd(CmdPause)
+func (c *Chubby) Events(enable bool) (<-chan any, error) {
+	_, err := c.cmd(cmdEvents, enable)
+
+	return c.events, err
+}
+
+func (c *Chubby) Pause() error {
+	_, err := c.cmd(cmdPause)
 
 	return err
 }
 
-func (c *CmdClient) Ping() error {
-	_, err := c.cmd(CmdPing)
+func (c *Chubby) Ping() error {
+	_, err := c.cmd(cmdPing)
 
 	return err
 }
 
-func (c *CmdClient) Play(pth string) error {
-	_, err := c.cmd(CmdPlay, pth)
+func (c *Chubby) Play(pth string) error {
+	_, err := c.cmd(cmdPlay, pth)
 
 	return err
 }
 
-func (c *CmdClient) Playlists() ([]*Playlist, error) {
-	lines, err := c.cmd(CmdPlaylists)
+func (c *Chubby) Playlists() ([]*Playlist, error) {
+	lines, err := c.cmd(cmdPlaylists)
 	if err != nil {
 		return nil, err
 	}
@@ -230,19 +243,19 @@ func (c *CmdClient) Playlists() ([]*Playlist, error) {
 	return pls, nil
 }
 
-func (c *CmdClient) Prev() error {
-	_, err := c.cmd(CmdPrev)
+func (c *Chubby) Prev() error {
+	_, err := c.cmd(cmdPrev)
 
 	return err
 }
 
-func (c *CmdClient) RenamePlaylist(from, to string) error {
-	_, err := c.cmd(CmdRenamePlaylist, from, to)
+func (c *Chubby) RenamePlaylist(from, to string) error {
+	_, err := c.cmd(cmdRenamePlaylist, from, to)
 
 	return err
 }
 
-func (c *CmdClient) Seek(time time.Time, mode SeekMode) error {
+func (c *Chubby) Seek(time time.Time, mode SeekMode) error {
 	var t int
 	var rel bool
 
@@ -260,13 +273,13 @@ func (c *CmdClient) Seek(time time.Time, mode SeekMode) error {
 		panic("unsupported SeekMode")
 	}
 
-	_, err := c.cmd(CmdSeek, t, rel)
+	_, err := c.cmd(cmdSeek, t, rel)
 
 	return err
 }
 
-func (c *CmdClient) Status() (*Status, error) {
-	lines, err := c.cmd(CmdStatus)
+func (c *Chubby) Status() (*Status, error) {
+	lines, err := c.cmd(cmdStatus)
 
 	if len(lines) != 1 {
 		return nil, err
@@ -302,13 +315,13 @@ func (c *CmdClient) Status() (*Status, error) {
 	return s, nil
 }
 
-func (c *CmdClient) Stop() error {
-	_, err := c.cmd(CmdStop)
+func (c *Chubby) Stop() error {
+	_, err := c.cmd(cmdStop)
 
 	return err
 }
 
-func (c *CmdClient) cmd(name string, args ...interface{}) ([]string, error) {
+func (c *Chubby) cmd(name string, args ...interface{}) ([]string, error) {
 	buf := name
 	for _, arg := range args {
 		buf += fmt.Sprintf(" %#v", arg)
@@ -319,18 +332,75 @@ func (c *CmdClient) cmd(name string, args ...interface{}) ([]string, error) {
 		return nil, err
 	}
 	c.conn.Flush()
+
+	select {
+	case r := <-c.resps:
+		return r, nil
+	case err = <-c.err:
+		return nil, err
+	}
+}
+
+func (c *Chubby) read() {
+	var err error
+
+	for {
+		var event string
+		var resp []string
+		event, resp, err = c.readResp()
+		if err != nil {
+			break
+		}
+		if event != "" {
+			if len(c.events) < eventsChSize {
+				var e any
+				e, err = parseEvent(event, resp)
+				if err != nil {
+					break
+				}
+				c.events <- e
+			}
+		} else {
+			c.resps <- resp
+		}
+	}
+
+	c.err <- err
+	close(c.events)
+	close(c.resps)
+}
+
+func (c *Chubby) readResp() (string, []string, error) {
 	line, err := c.conn.ReadLine()
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
-	if err := parseRespStatus(line); err != nil {
-		return nil, err
+
+	event := ""
+	pts := strings.SplitN(line, " ", 2)
+	if pts[0] == "OK" {
+		// Do nothing.
+	} else if pts[0] == "EVENT" {
+		if len(pts) != 2 {
+			return "", nil,
+				fmt.Errorf("protocol: invalid header")
+		}
+		event = pts[1]
+	} else if pts[0] == "ERR" {
+		if len(pts) != 2 {
+			return "", nil,
+				fmt.Errorf("protocol: invalid header")
+		}
+		return "", nil, newServerError(pts[1])
+	} else {
+		return "", nil, fmt.Errorf("protocol: invalid header")
 	}
+
 	lines := make([]string, 0, 8)
 	for {
 		line, err := c.conn.ReadLine()
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		if len(line) == 0 {
 			break
@@ -338,23 +408,7 @@ func (c *CmdClient) cmd(name string, args ...interface{}) ([]string, error) {
 		lines = append(lines, line)
 	}
 
-	return lines, nil
-}
-
-func parseRespStatus(line string) error {
-	parts := strings.SplitN(line, " ", 2)
-	if len(parts) == 0 {
-		return errors.New("invalid server response")
-	}
-	if parts[0] == "OK" {
-		return nil
-	} else if parts[0] == "ERR" {
-		if len(parts) == 2 {
-			return fmt.Errorf("server error: %s", parts[1])
-		}
-	}
-
-	return errors.New("invalid server response")
+	return event, lines, nil
 }
 
 func parseEntry(s string) (Entry, error) {
