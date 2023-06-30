@@ -173,6 +173,12 @@ func (c *Chubby) DeletePlaylist(name string) error {
 	return err
 }
 
+func (c *Chubby) Events(enable bool) (<-chan any, error) {
+	_, err := c.cmd(cmdEvents, enable)
+
+	return c.events, err
+}
+
 func (c *Chubby) Kill() error {
 	_, err := c.cmd(cmdKill)
 
@@ -200,12 +206,6 @@ func (c *Chubby) Next() error {
 	_, err := c.cmd(cmdNext)
 
 	return err
-}
-
-func (c *Chubby) Events(enable bool) (<-chan any, error) {
-	_, err := c.cmd(cmdEvents, enable)
-
-	return c.events, err
 }
 
 func (c *Chubby) Pause() error {
