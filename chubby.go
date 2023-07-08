@@ -20,6 +20,7 @@ package chubby
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"strings"
 
@@ -139,9 +140,9 @@ func (c *Chubby) Connect(host string, port int) error {
 	}
 	c.conn = textconn.New(conn)
 
-	c.resps = make(chan []string)
+	c.resps = make(chan []string, 1)
 	c.events = make(chan Event, eventsChSize)
-	c.err = make(chan error)
+	c.err = make(chan error, 1)
 
 	go c.read()
 
@@ -350,7 +351,7 @@ func (c *Chubby) read() {
 		var nerr net.Error
 		event, resp, err = c.readResp()
 		if err != nil {
-			if errors.As(err, &nerr) {
+			if errors.As(err, &nerr) || errors.Is(err, io.EOF) {
 				break
 			} else {
 				c.err <- err
