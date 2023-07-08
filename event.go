@@ -18,13 +18,46 @@
 package chubby
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/vchimishuk/chubby/parser"
 	"github.com/vchimishuk/chubby/time"
 )
 
+type Event interface {
+	Event() string
+	Serialize() string
+}
+
+type CreatePlaylistEvent struct {
+	s    string
+	Name string
+}
+
+func (e *CreatePlaylistEvent) Event() string {
+	return "create-playlist"
+}
+
+func (e *CreatePlaylistEvent) Serialize() string {
+	return e.s
+}
+
+type DeletePlaylistEvent struct {
+	s    string
+	Name string
+}
+
+func (e *DeletePlaylistEvent) Event() string {
+	return "delete-playlist"
+}
+
+func (e *DeletePlaylistEvent) Serialize() string {
+	return e.s
+}
+
 type StatusEvent struct {
+	s           string
 	State       State
 	PlaylistPos int
 	TrackPos    time.Time
@@ -32,62 +65,75 @@ type StatusEvent struct {
 	Track       *Track
 }
 
-type kv map[string]any
+func (e *StatusEvent) Event() string {
+	return "status"
+}
 
-func parseEvent(name string, lines []string) (any, error) {
-	m := make([]kv, 0, len(lines))
-	for _, l := range lines {
-		p, err := parser.Parse(l)
-		if err != nil {
-			return nil, fmt.Errorf("protocol: %w", err.Error())
-		}
-		m = append(m, p)
+func (e *StatusEvent) Serialize() string {
+	return e.s
+}
+
+func parseEvent(name string, lines []string) (Event, error) {
+	if len(lines) != 1 {
+		return nil, errors.New("protocol error")
+	}
+	s := lines[0]
+
+	p, err := parser.Parse(s)
+	if err != nil {
+		return nil, fmt.Errorf("protocol: %w", err.Error())
 	}
 
 	switch name {
+	case "create-playlist":
+		return createCreatePlaylist(s, p)
+	case "delete-playlist":
+		return createDeletePlaylist(s, p)
 	case "status":
-		return parseStatus(m)
+		return createStatus(s, p)
 	default:
 		return nil, fmt.Errorf("protocol: invalid event: %s", name)
 	}
 }
 
-func parseStatus(lines []kv) (interface{}, error) {
-	e := &StatusEvent{Playlist: &Playlist{}, Track: &Track{}}
+func createCreatePlaylist(s string, m map[string]any) (Event, error) {
+	return &CreatePlaylistEvent{
+		s:    s,
+		Name: m["name"].(string),
+	}, nil
+}
 
-	for _, l := range lines {
-		for k, v := range l {
-			switch k {
-			case "state":
-				st, err := parseState(v.(string))
-				if err != nil {
-					return nil, err
-				}
-				e.State = st
-			case "playlist-position":
-				e.PlaylistPos = v.(int)
-			case "track-position":
-				e.TrackPos = time.Time(v.(int))
-			case "playlist-name":
-				e.Playlist.Name = v.(string)
-			case "playlist-duration":
-				e.Playlist.Duration = time.Time(v.(int))
-			case "playlist-length":
-				e.Playlist.Length = v.(int)
-			case "track-path":
-				e.Track.Path = v.(string)
-			case "track-artist":
-				e.Track.Artist = v.(string)
-			case "track-album":
-				e.Track.Album = v.(string)
-			case "track-title":
-				e.Track.Title = v.(string)
-			case "track-number":
-				e.Track.Number = v.(int)
-			case "track-length":
-				e.Track.Length = time.Time(v.(int))
-			}
-		}
+func createDeletePlaylist(s string, m map[string]any) (Event, error) {
+	return &DeletePlaylistEvent{
+		s:    s,
+		Name: m["name"].(string),
+	}, nil
+}
+
+func createStatus(s string, m map[string]any) (Event, error) {
+	state, err := parseState(m["state"].(string))
+	if err != nil {
+		return nil, err
+	}
+
+	e := &StatusEvent{
+		s:           s,
+		State:       state,
+		PlaylistPos: m["playlist-position"].(int),
+		TrackPos:    time.Time(m["track-position"].(int)),
+		Playlist: &Playlist{
+			Name:     m["playlist-name"].(string),
+			Duration: time.Time(m["playlist-duration"].(int)),
+			Length:   m["playlist-length"].(int),
+		},
+		Track: &Track{
+			Path:   m["track-path"].(string),
+			Artist: m["track-artist"].(string),
+			Album:  m["track-album"].(string),
+			Title:  m["track-title"].(string),
+			Number: m["track-number"].(int),
+			Length: time.Time(m["track-length"].(int)),
+		},
 	}
 
 	return e, nil

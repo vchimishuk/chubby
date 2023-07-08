@@ -120,7 +120,7 @@ func (t *Track) Track() *Track {
 type Chubby struct {
 	conn   *textconn.TextConn
 	resps  chan []string
-	events chan any
+	events chan Event
 	err    chan error
 }
 
@@ -140,8 +140,8 @@ func (c *Chubby) Connect(host string, port int) error {
 	c.conn = textconn.New(conn)
 
 	c.resps = make(chan []string)
-	c.events = make(chan any, eventsChSize)
-	c.err = make(chan error, 1)
+	c.events = make(chan Event, eventsChSize)
+	c.err = make(chan error)
 
 	go c.read()
 
@@ -173,7 +173,7 @@ func (c *Chubby) DeletePlaylist(name string) error {
 	return err
 }
 
-func (c *Chubby) Events(enable bool) (<-chan any, error) {
+func (c *Chubby) Events(enable bool) (<-chan Event, error) {
 	_, err := c.cmd(cmdEvents, enable)
 
 	return c.events, err
@@ -347,27 +347,33 @@ func (c *Chubby) read() {
 	for {
 		var event string
 		var resp []string
+		var nerr net.Error
 		event, resp, err = c.readResp()
 		if err != nil {
-			break
-		}
-		if event != "" {
+			if errors.As(err, &nerr) {
+				break
+			} else {
+				c.err <- err
+			}
+		} else if event != "" {
 			if len(c.events) < eventsChSize {
-				var e any
+				var e Event
 				e, err = parseEvent(event, resp)
-				if err != nil {
-					break
+				// Ignore invalid/unknown events.
+				if err == nil {
+					c.events <- e
 				}
-				c.events <- e
 			}
 		} else {
 			c.resps <- resp
 		}
 	}
 
+	c.conn.Close()
 	c.err <- err
 	close(c.events)
 	close(c.resps)
+	close(c.err)
 }
 
 func (c *Chubby) readResp() (string, []string, error) {
