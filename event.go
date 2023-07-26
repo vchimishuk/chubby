@@ -116,25 +116,30 @@ func createStatus(s string, m map[string]any) (Event, error) {
 		return nil, err
 	}
 
-	e := &StatusEvent{
-		s:           s,
-		State:       state,
-		PlaylistPos: m["playlist-position"].(int),
-		TrackPos:    time.Time(m["track-position"].(int)),
-		Playlist: &Playlist{
-			Name:     m["playlist-name"].(string),
-			Duration: time.Time(m["playlist-duration"].(int)),
-			Length:   m["playlist-length"].(int),
-		},
-		Track: &Track{
-			Path:   m["track-path"].(string),
-			Artist: m["track-artist"].(string),
-			Album:  m["track-album"].(string),
-			Title:  m["track-title"].(string),
-			Number: m["track-number"].(int),
-			Length: time.Time(m["track-length"].(int)),
-		},
+	if state == StateStopped {
+		return &StatusEvent{
+			s:     s,
+			State: state,
+		}, nil
+	} else {
+		return &StatusEvent{
+			s:           s,
+			State:       state,
+			PlaylistPos: m["playlist-position"].(int),
+			TrackPos:    time.Time(m["track-position"].(int)),
+			Playlist: &Playlist{
+				Name:     m["playlist-name"].(string),
+				Duration: time.Time(m["playlist-duration"].(int)),
+				Length:   m["playlist-length"].(int),
+			},
+			Track: &Track{
+				Path:   m["track-path"].(string),
+				Artist: m["track-artist"].(string),
+				Album:  m["track-album"].(string),
+				Title:  m["track-title"].(string),
+				Number: m["track-number"].(int),
+				Length: time.Time(m["track-length"].(int)),
+			},
+		}, nil
 	}
-
-	return e, nil
 }
