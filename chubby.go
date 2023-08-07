@@ -68,7 +68,6 @@ type Playlist struct {
 type Status struct {
 	State       State
 	PlaylistPos int
-	TrackLen    time.Time
 	TrackPos    time.Time
 	Playlist    *Playlist
 	Track       *Track
@@ -101,6 +100,7 @@ type Track struct {
 	Path   string
 	Artist string
 	Album  string
+	Year   int
 	Title  string
 	Number int
 	Length time.Time
@@ -300,7 +300,6 @@ func (c *Chubby) Status() (*Status, error) {
 
 	if st != StateStopped {
 		s.PlaylistPos = m["playlist-position"].(int)
-		s.TrackLen = time.Time(m["track-length"].(int))
 		s.TrackPos = time.Time(m["track-position"].(int))
 		s.Playlist.Name = m["playlist-name"].(string)
 		s.Playlist.Duration = time.Time(m["playlist-duration"].(int))
@@ -308,6 +307,7 @@ func (c *Chubby) Status() (*Status, error) {
 		s.Track.Path = m["track-path"].(string)
 		s.Track.Artist = m["track-artist"].(string)
 		s.Track.Album = m["track-album"].(string)
+		s.Track.Year = m["track-year"].(int)
 		s.Track.Title = m["track-title"].(string)
 		s.Track.Number = m["track-number"].(int)
 		s.Track.Length = time.Time(m["track-length"].(int))
@@ -432,6 +432,7 @@ func parseEntry(s string) (Entry, error) {
 		return &Track{Path: m["path"].(string),
 				Artist: m["artist"].(string),
 				Album:  m["album"].(string),
+				Year:   m["year"].(int),
 				Title:  m["title"].(string),
 				Number: m["number"].(int),
 				Length: time.Time(m["length"].(int))},

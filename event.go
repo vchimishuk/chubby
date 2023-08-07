@@ -136,6 +136,7 @@ func createStatus(s string, m map[string]any) (Event, error) {
 				Path:   m["track-path"].(string),
 				Artist: m["track-artist"].(string),
 				Album:  m["track-album"].(string),
+				Year:   m["track-year"].(int),
 				Title:  m["track-title"].(string),
 				Number: m["track-number"].(int),
 				Length: time.Time(m["track-length"].(int)),
