@@ -118,6 +118,8 @@ func (t *Track) Track() *Track {
 	return t
 }
 
+var ErrNotConnected = errors.New("not connected")
+
 type Chubby struct {
 	conn   *textconn.TextConn
 	resps  chan []string
@@ -151,7 +153,7 @@ func (c *Chubby) Connect(host string, port int) error {
 
 func (c *Chubby) Close() error {
 	if c.conn == nil {
-		return errors.New("not connected")
+		return ErrNotConnected
 	}
 	err := c.conn.Close()
 	c.conn = nil
@@ -328,11 +330,17 @@ func (c *Chubby) cmd(name string, args ...interface{}) ([]string, error) {
 		buf += fmt.Sprintf(" %#v", arg)
 	}
 
+	if c.conn == nil {
+		return nil, ErrNotConnected
+	}
 	_, err := c.conn.WriteLine(buf)
 	if err != nil {
 		return nil, err
 	}
-	c.conn.Flush()
+	err = c.conn.Flush()
+	if err != nil {
+		return nil, err
+	}
 
 	select {
 	case r := <-c.resps:
