@@ -23,6 +23,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"sync/atomic"
 
 	"github.com/vchimishuk/chubby/parser"
 	"github.com/vchimishuk/chubby/textconn"
@@ -121,14 +122,19 @@ func (t *Track) Track() *Track {
 var ErrNotConnected = errors.New("not connected")
 
 type Chubby struct {
-	conn   *textconn.TextConn
-	resps  chan []string
-	events chan Event
-	err    chan error
+	connected atomic.Bool
+	conn      *textconn.TextConn
+	resps     chan []string
+	events    chan Event
+	err       chan error
+}
+
+func (c *Chubby) Connected() bool {
+	return c.connected.Load()
 }
 
 func (c *Chubby) Connect(host string, port int) error {
-	if c.conn != nil {
+	if c.connected.Load() {
 		return errors.New("already connected")
 	}
 
@@ -141,6 +147,7 @@ func (c *Chubby) Connect(host string, port int) error {
 		return err
 	}
 	c.conn = textconn.New(conn)
+	c.connected.Store(true)
 
 	c.resps = make(chan []string, 1)
 	c.events = make(chan Event, eventsChSize)
@@ -152,11 +159,11 @@ func (c *Chubby) Connect(host string, port int) error {
 }
 
 func (c *Chubby) Close() error {
-	if c.conn == nil {
+	if !c.connected.Load() {
 		return ErrNotConnected
 	}
 	err := c.conn.Close()
-	c.conn = nil
+	c.connected.Store(false)
 
 	// Wait for read() goroutine to exit.
 	<-c.err
@@ -330,7 +337,7 @@ func (c *Chubby) cmd(name string, args ...interface{}) ([]string, error) {
 		buf += fmt.Sprintf(" %#v", arg)
 	}
 
-	if c.conn == nil {
+	if !c.connected.Load() {
 		return nil, ErrNotConnected
 	}
 	_, err := c.conn.WriteLine(buf)
@@ -379,6 +386,8 @@ func (c *Chubby) read() {
 	}
 
 	c.conn.Close()
+	c.connected.Store(false)
+
 	c.err <- err
 	close(c.events)
 	close(c.resps)
