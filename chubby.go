@@ -1,4 +1,4 @@
-// Copyright 2017-2023 Viacheslav Chimishuk <vchimishuk@yandex.ru>
+// Copyright 2017-2024 Viacheslav Chimishuk <vchimishuk@yandex.ru>
 //
 // This file is part of chubby.
 //
@@ -46,6 +46,7 @@ const (
 	cmdSeek           = "seek"
 	cmdStatus         = "status"
 	cmdStop           = "stop"
+	cmdVolume         = "volume"
 )
 
 type SeekMode int
@@ -54,6 +55,13 @@ const (
 	SeekModeAbs     SeekMode = 0
 	SeekModeForward SeekMode = 1
 	SeekModeRewind  SeekMode = -1
+)
+
+type VolumeMode bool
+
+const (
+	VolumeModeAbs = false
+	VolumeModeRel = true
 )
 
 const (
@@ -327,6 +335,12 @@ func (c *Chubby) Status() (*Status, error) {
 
 func (c *Chubby) Stop() error {
 	_, err := c.cmd(cmdStop)
+
+	return err
+}
+
+func (c *Chubby) Volume(vol int, mode VolumeMode) error {
+	_, err := c.cmd(cmdVolume, vol, mode)
 
 	return err
 }
