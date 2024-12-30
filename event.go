@@ -119,6 +119,7 @@ func createStatus(s string, m map[string]any) (Event, error) {
 
 	e := &StatusEvent{
 		s:      s,
+		State:  state,
 		Volume: m["volume"].(int),
 	}
 
