@@ -59,6 +59,7 @@ func (e *DeletePlaylistEvent) Serialize() string {
 type StatusEvent struct {
 	s           string
 	State       State
+	Volume      int
 	PlaylistPos int
 	TrackPos    time.Time
 	Playlist    *Playlist
@@ -116,31 +117,29 @@ func createStatus(s string, m map[string]any) (Event, error) {
 		return nil, err
 	}
 
-	if state == StateStopped {
-		return &StatusEvent{
-			s:     s,
-			State: state,
-		}, nil
-	} else {
-		return &StatusEvent{
-			s:           s,
-			State:       state,
-			PlaylistPos: m["playlist-position"].(int),
-			TrackPos:    time.Time(m["track-position"].(int)),
-			Playlist: &Playlist{
-				Name:     m["playlist-name"].(string),
-				Duration: time.Time(m["playlist-duration"].(int)),
-				Length:   m["playlist-length"].(int),
-			},
-			Track: &Track{
-				Path:   m["track-path"].(string),
-				Artist: m["track-artist"].(string),
-				Album:  m["track-album"].(string),
-				Year:   m["track-year"].(int),
-				Title:  m["track-title"].(string),
-				Number: m["track-number"].(int),
-				Length: time.Time(m["track-length"].(int)),
-			},
-		}, nil
+	e := &StatusEvent{
+		s:      s,
+		Volume: m["volume"].(int),
 	}
+
+	if state != StateStopped {
+		e.PlaylistPos = m["playlist-position"].(int)
+		e.TrackPos = time.Time(m["track-position"].(int))
+		e.Playlist = &Playlist{
+			Name:     m["playlist-name"].(string),
+			Duration: time.Time(m["playlist-duration"].(int)),
+			Length:   m["playlist-length"].(int),
+		}
+		e.Track = &Track{
+			Path:   m["track-path"].(string),
+			Artist: m["track-artist"].(string),
+			Album:  m["track-album"].(string),
+			Year:   m["track-year"].(int),
+			Title:  m["track-title"].(string),
+			Number: m["track-number"].(int),
+			Length: time.Time(m["track-length"].(int)),
+		}
+	}
+
+	return e, nil
 }
