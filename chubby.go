@@ -76,6 +76,7 @@ type Playlist struct {
 
 type Status struct {
 	State       State
+	Volume      int
 	PlaylistPos int
 	TrackPos    time.Time
 	Playlist    *Playlist
@@ -313,21 +314,28 @@ func (c *Chubby) Status() (*Status, error) {
 		return nil, err
 	}
 
-	s := &Status{State: st, Playlist: &Playlist{}, Track: &Track{}}
+	s := &Status{
+		State:  st,
+		Volume: m["volume"].(int),
+	}
 
 	if st != StateStopped {
 		s.PlaylistPos = m["playlist-position"].(int)
 		s.TrackPos = time.Time(m["track-position"].(int))
-		s.Playlist.Name = m["playlist-name"].(string)
-		s.Playlist.Duration = time.Time(m["playlist-duration"].(int))
-		s.Playlist.Length = m["playlist-length"].(int)
-		s.Track.Path = m["track-path"].(string)
-		s.Track.Artist = m["track-artist"].(string)
-		s.Track.Album = m["track-album"].(string)
-		s.Track.Year = m["track-year"].(int)
-		s.Track.Title = m["track-title"].(string)
-		s.Track.Number = m["track-number"].(int)
-		s.Track.Length = time.Time(m["track-length"].(int))
+		s.Playlist = &Playlist{
+			Name:     m["playlist-name"].(string),
+			Duration: time.Time(m["playlist-duration"].(int)),
+			Length:   m["playlist-length"].(int),
+		}
+		s.Track = &Track{
+			Path:   m["track-path"].(string),
+			Artist: m["track-artist"].(string),
+			Album:  m["track-album"].(string),
+			Year:   m["track-year"].(int),
+			Title:  m["track-title"].(string),
+			Number: m["track-number"].(int),
+			Length: time.Time(m["track-length"].(int)),
+		}
 	}
 
 	return s, nil
