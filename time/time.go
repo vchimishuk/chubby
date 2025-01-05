@@ -57,6 +57,10 @@ func (t Time) String() string {
 	return r
 }
 
+func New(seconds int) Time {
+	return Time(seconds)
+}
+
 func Parse(s string) (Time, error) {
 	pts := reverse(strings.Split(s, ":"))
 	i, err := parseSecMin(pts[0])

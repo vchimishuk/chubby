@@ -52,9 +52,9 @@ const (
 type SeekMode int
 
 const (
-	SeekModeAbs     SeekMode = 0
-	SeekModeForward SeekMode = 1
-	SeekModeRewind  SeekMode = -1
+	SeekModeAbs SeekMode = iota
+	SeekModeBackward
+	SeekModeForward
 )
 
 type VolumeMode bool
@@ -282,11 +282,11 @@ func (c *Chubby) Seek(time time.Time, mode SeekMode) error {
 	case SeekModeAbs:
 		t = int(time)
 		rel = false
+	case SeekModeBackward:
+		t = -int(time)
+		rel = true
 	case SeekModeForward:
 		t = int(time)
-		rel = true
-	case SeekModeRewind:
-		t = -int(time)
 		rel = true
 	default:
 		panic("unsupported SeekMode")

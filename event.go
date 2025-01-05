@@ -82,7 +82,7 @@ func parseEvent(name string, lines []string) (Event, error) {
 
 	p, err := parser.Parse(s)
 	if err != nil {
-		return nil, fmt.Errorf("protocol: %w", err.Error())
+		return nil, fmt.Errorf("protocol: %w", err)
 	}
 
 	switch name {
