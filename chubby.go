@@ -321,10 +321,10 @@ func (c *Chubby) Status() (*Status, error) {
 
 	if st != StateStopped {
 		s.PlaylistPos = m["playlist-position"].(int)
-		s.TrackPos = time.Time(m["track-position"].(int))
+		s.TrackPos = parseTime(m["track-position"])
 		s.Playlist = &Playlist{
 			Name:     m["playlist-name"].(string),
-			Duration: time.Time(m["playlist-duration"].(int)),
+			Duration: parseTime(m["playlist-duration"]),
 			Length:   m["playlist-length"].(int),
 		}
 		s.Track = &Track{
@@ -334,7 +334,9 @@ func (c *Chubby) Status() (*Status, error) {
 			Year:   m["track-year"].(int),
 			Title:  m["track-title"].(string),
 			Number: m["track-number"].(int),
-			Length: time.Time(m["track-length"].(int)),
+			// TODO: Rename to track-duration to make it consistent
+			//       with playlist-duration.
+			Length: parseTime(m["track-length"]),
 		}
 	}
 
@@ -490,4 +492,9 @@ func parsePlaylist(s string) (*Playlist, error) {
 		Duration: time.Time(m["duration"].(int)),
 		Length:   m["length"].(int),
 	}, nil
+}
+
+func parseTime(v any) time.Time {
+	i := v.(int)
+	return time.Milliseconds(int64(i))
 }

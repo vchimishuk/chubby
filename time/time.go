@@ -24,18 +24,22 @@ import (
 	"strings"
 )
 
-type Time int
+type Time int64
 
 func (t Time) Hour() int {
-	return int(t) / (60 * 60)
+	return int(t / 1000 / (60 * 60))
 }
 
 func (t Time) Minute() int {
-	return int(t) % (60 * 60) / 60
+	return int(t / 1000 % (60 * 60) / 60)
 }
 
 func (t Time) Second() int {
-	return int(t) % 60
+	return int(t / 1000 % 60)
+}
+
+func (t Time) Millisecond() int {
+	return int(t % 1000)
 }
 
 func (t Time) String() string {
@@ -57,10 +61,15 @@ func (t Time) String() string {
 	return r
 }
 
-func New(seconds int) Time {
-	return Time(seconds)
+func Seconds(seconds int64) Time {
+	return Time(seconds * 1000)
 }
 
+func Milliseconds(ms int64) Time {
+	return Time(ms)
+}
+
+// TODO: Support optional milliseconds part.
 func Parse(s string) (Time, error) {
 	pts := reverse(strings.Split(s, ":"))
 	i, err := parseSecMin(pts[0])
@@ -87,7 +96,7 @@ func Parse(s string) (Time, error) {
 		return 0, errors.New("bad format")
 	}
 
-	return Time(t), nil
+	return Seconds(int64(t)), nil
 }
 
 func parseSecMin(s string) (int, error) {
